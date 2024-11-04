@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -7,6 +7,7 @@ import {
   TextInput,
   Modal,
   ScrollView,
+  Animated,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFonts } from "expo-font";
@@ -16,22 +17,62 @@ import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import RNDateTimePicker from "@react-native-community/datetimepicker";
 
 const HomeScreen = () => {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDate, setTaskDate] = useState("");
+  const [tasks, setTasks] = useState([]);
+  const [datePicker, setDatePicker] = useState(false);
+  const [selection, setSelection] = useState("");
+  const slideAnim = useRef(new Animated.Value(100)).current;
+  const [visible, setVisible] = useState(false);
+  const allTasksRef = useRef(null);
+
+  useEffect(() => {
+    if (visible) {
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: 100,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible, slideAnim]);
   const [fontsLoaded] = useFonts({
     "CustomFont-Regular": require("../assets/Fonts/LibreBaskerville-Regular.ttf"),
     "CustomFont-Bold": require("../assets/Fonts/LibreBaskerville-Bold.ttf"),
     "Poppins-Regular": require("../assets/Fonts/Poppins-Regular.ttf"),
   });
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskDate, setTaskDate] = useState("");
-  const [tasks, setTasks] = useState([]);
-  const [datePicker, setDatePicker] = useState(false);
+  const handleToggleModal = (prop) => {
+    setVisible(prop);
+  };
+
+  const handleClose = () => {
+    Animated.timing(slideAnim, {
+      toValue: 100,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setVisible(false));
+  };
 
   if (!fontsLoaded) {
     return <AppLoading />;
   }
 
+  const handleSelection = (details) => {
+    setSelection(details);
+    if (details.length > 0) {
+      setVisible(true);
+    } else {
+      handleClose();
+    }
+    console.log(selection);
+  };
   const handleShowDatePicker = () => {
     setDatePicker(!datePicker);
   };
@@ -40,6 +81,16 @@ const HomeScreen = () => {
     const updatedTasks = tasks.filter((_, i) => i !== index);
     setTasks(updatedTasks);
   };
+  const markCompletedHandler = () => {
+    const updatedTasks = tasks.filter((_, index) => !selection.includes(index));
+    setTasks(updatedTasks);
+    setSelection([]);
+    if (allTasksRef.current) {
+      allTasksRef.current.clearSelection();
+    }
+    handleClose();
+  };
+
   const addTask = () => {
     if (taskTitle && taskDate) {
       const newTask = { title: taskTitle, date: taskDate };
@@ -47,12 +98,39 @@ const HomeScreen = () => {
       setTaskTitle("");
       setTaskDate("");
       setModalVisible(false);
+      setSelection([]); // Reset selection when adding a new task
     }
   };
 
   return (
     <View style={styles.container}>
-      {/*SEARCH CONTAINER*/}
+      {visible && (
+        <TouchableOpacity
+          onPress={markCompletedHandler}
+          style={{
+            width: "100%",
+            position: "absolute",
+            bottom: 20,
+            alignItems: "center",
+            marginLeft: 20,
+            justifyContent: "center",
+          }}
+        >
+          <Animated.View
+            style={{
+              width: "80%",
+              maxWidth: 300,
+              backgroundColor: "white",
+              borderRadius: 20,
+              paddingVertical: 20,
+              alignItems: "center",
+              transform: [{ translateY: slideAnim }],
+            }}
+          >
+            <Text style={{ fontWeight: "bold" }}>Mark as Completed</Text>
+          </Animated.View>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.searchContainer}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -63,6 +141,7 @@ const HomeScreen = () => {
             <TextInput
               placeholder="Try to find tasks"
               placeholderTextColor="#ccc"
+              style={{color: "white"}}
             />
           </View>
         </View>
@@ -164,7 +243,12 @@ const HomeScreen = () => {
 
       {/* Pass tasks as prop to AllTasks */}
       <View>
-        <AllTasks tasks={tasks} onDeleteItem={handleDeleteItem}/>
+        <AllTasks
+          ref={allTasksRef}
+          tasks={tasks}
+          onDeleteItem={handleDeleteItem}
+          onSelectionChange={handleSelection}
+        />
       </View>
       {datePicker ? (
         <View>
